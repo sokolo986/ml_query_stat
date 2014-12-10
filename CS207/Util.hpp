@@ -151,8 +151,11 @@ struct totally_ordered
 
 template <typename C>
 struct pvt{
-		virtual C collect(){}
-		virtual C stop_collect(){}
+	private:
+		std::vector<C> C_;
+	public:
+		virtual void collect(){}
+		//virtual void stats(){}
 		virtual bool has_met_limit(){return true;}
 };
 

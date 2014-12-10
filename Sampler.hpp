@@ -4,68 +4,37 @@
 
  ** typename S must define a 'collect(clock start_time, clock end_time)' routine, where the start and end time define the time period to collect samples within
 
- ** if collect() returns too many samples, the first @ a samples within the maximum number of samples limit will be stored 
+ ** if sample_value_type collect() returns too many samples, the first @ a samples within the maximum number of samples limit will be stored
+
+ //type S can be of type float/int/double
+ ** to free up policies from time to time clear container 
  **/
-		
-template <typename P, typename S, typename C>
+
+
+template <typename P, typename S>
 class Sampler{
  private:
-	struct edge_null {
-		unsigned edge;
-	};
-	typedef edge_null E;
 
 	/**Holds policy and sample information**/
 	struct policy_info_type;
-	struct sample_info_type;
-	typedef sample_info_type I;
-	typedef Graph<I,E> GraphType;
 
  public:
 	/** Value types **/
 	typedef P policy_value_type;
-	typedef S sample_value_type;
-	typedef C collect_return_type;
 	
 	/** Graph typedefs **/
 	class Policy;
 	class policy_iterator;
+	typedef Sampler sampler_type;
+	
+	typedef std::vector<S> Samples;
 	typedef Policy policy_type;
-	typedef typename GraphType::size_type size_type;
-	typedef typename GraphType::Node sample_type;
-	typedef typename GraphType::Node Sample;
-	typedef typename GraphType::node_value_type sample_info_type;
-	typedef typename GraphType::node_iterator sample_iterator;
+	typedef unsigned size_type;
 	typedef std::chrono::high_resolution_clock clock;
 
 	/** Constructor for Sampler Class
-	* @pre	None
- 	* @param[in] max_policies  i in [1,UCHAR_MAX)
-   * @post 	num_active_policies() = 0
-	* @post	num_inactive_policies() = 0
-	* @post	num_policies() = 0
 	*/
-	Sampler(size_type max_policies){
-		assert((max_policies >= 1) && (max_policies<UCHAR_MAX));
-
-		//create pool of policy ids as appropriate  
-		for (size_type i=0; i<max_policies; ++i)
-			free_id_set_.insert(i);
-
-		for (size_type i=0; i<max_policies; ++i)
-			policies_[i] = policy_info_type();
-
-		for (size_type i=0; i<max_policies; ++i)
-			policy2samples_[i] = GraphType();
-
-		num_inactive_policies_ = 0;
-		num_active_policies_ = 0;
-		max_policies_ = max_policies;
-
-		assert(policy2samples_.size()==policies_.size());
-		assert(num_active_policies()==0);
-		assert(num_inactive_policies()==0);
-		assert(num_policies()==0);
+	Sampler(){
 	}
 
 	/** Use Default destructor **/
@@ -80,87 +49,42 @@ class Sampler{
 		assert (num_active_policies()==num_policies());
 	}
 
-	/** Stops the collection of all samples
-	* @post			num_active_policies()==0;
-	* @post			num_inactive_policies==num_policies();
-	*/
-	void stop_collections() {
-		for(auto it = policies(); it != policies_end(); ++it)
-			(*it).stop_collection();
-		assert (num_active_policies()==0);
-		assert (num_inactive_policies()==num_policies());
-	}
-
-	/** Increases max_policy() limit
-	* @pre			max_policies()+num_policies_to_add < UCHAR_MAX
-   * @post 			max_policies()+=num_policies_to_add
-	*/
-	void increase_num_policies(size_type num_policies_to_add){
-		assert((max_num_policies()+num_policies_to_add)< UCHAR_MAX);
-		size_type cur_max = max_num_policies();
-		size_type max_limit = cur_max + num_policies_to_add;
-
-		for(size_type i=cur_max; i<max_limit; ++i)
-			free_id_set_.insert(i);
-
-		for (size_type i=cur_max; i<max_limit; ++i)
-			policies_[i] = policy_info_type();
-
-		for (size_type i=cur_max; i<max_limit; ++i)
-			policy2samples_[i] = GraphType();
-
-		max_policies_ += num_policies_to_add; 
-	}
-
 	/** Creates a new policy
    * @post 			num_policies() += 1
 	* @post			num_inactive_policies() += 1
 	*/
-  	Policy create_policy(size_type max_samples = 1000 ){
-		assert(num_policies()<=max_num_policies());		
-		auto it = free_id_set_.begin();
-		size_type pid = *it;
-		free_id_set_.erase(it);
-		used_id_set_.insert(pid);
-		++num_inactive_policies_;
-		policies_[pid].max_num_samples_ 	= max_samples;
 
-		policy2samples_[pid] = GraphType();
-		assert(policy2samples_.size()==policies_.size());
-		return Policy(this,pid);
-		
+	/**collect sec delta is the maximum number of seconds that each collection should look for samples in*/
+  	Policy create_policy(size_type max_samples = 1000, size_type collect_sec_delta = 60){
+		policy_info_type p (max_samples,false,clock(),clock(),collect_sec_delta,policy_value_type());//,Samples());
+
+		policies_.push_back(p);
+		policy2uid_.push_back(policies_.size()-1);
+		return Policy(this,policy2uid_.size()-1);
  	} 
 
 	/** Creates a new policy copying the samples from an existing policy
    * @post 			num_policies() += 1
 	* @post			num_inactive_policies() += 1
 	*/
-  	Policy create_policy(Policy p){
-		assert(num_policies()<=max_num_policies());		
-		auto it = free_id_set_.begin();
-		size_type pid = *it;
-		free_id_set_.erase(it);
-		used_id_set_.insert(pid);
-
-		++num_inactive_policies_;
-		policies_[pid].value_ = p.value();
-		policy2samples_[pid] = GraphType();
-		assert(policy2samples_.size()==policies_.size());
-		return Policy(this,pid);
+  	Policy create_policy(Policy& p){ //added to policy
+		assert(is_valid(p));
+		Policy p1 = p;
+		policies_.push_back(p1);
+		policy2uid_.push_back(policies_.size()-1);
+		return Policy(this,policy2uid_.size()-1);
  	} 
 
 	/** Deletes a policy. Invalidates all existing pointers
 	* @post 			invalidated all existing pointers/references to outstanding policies
 	*/
 	void delete_policy(Policy& p){
-		if (p.is_active())
-			--num_active_policies_;
-		else
-			--num_inactive_policies_;
-		policy2samples_[p.get_id()].clear();
-		policies_[p.get_id()] = policy_value_type();
-		used_id_set_.erase(p.get_id);
-		free_id_set_.insert(p.get_id);
+		assert(is_valid(p));
+		size_type pid = p.get_id();
+
+		size_type lookupId = policy2uid_[pid];
+		policies_[lookupId] = policy_info_type();
+		policy2uid_.erase(policy2uid_.begin()+pid);
 	}
 
 	/**Returns an iterator to the start of all policies**/
@@ -177,85 +101,104 @@ class Sampler{
 		return *it;
 	}
 
-	/**Returns max number of policies allowed */
-	size_type max_num_policies() const{
-		return max_policies_; 
+	Policy policy(size_type id){
+		assert(id < num_policies());
+		return Policy(this,id);
 	}
 
 	/**Total active/inactive policies**/
 	size_type num_policies() {
-		assert(used_id_set_.size()==(num_active_policies_+num_inactive_policies_));
-		return used_id_set_.size();
+		return policy2uid_.size();
 	}
 
 	/**Returns the number of policy that are actively collecting samples**/
 	size_type num_active_policies(){
-		return num_active_policies_;
+		size_type i = 0;
+		for(auto it = policies(); it != policies_end(); ++it)
+			if ((*it).is_active())
+				i += 1;
+		return i;
   	}
 
 	/**Returns the number of policy that are not actively collecting samples**/
 	size_type num_inactive_policies() {
-		return num_inactive_policies_;
+		return num_policies()-num_active_policies();
 	}
 
   /**Erases all policies and samples**/
   void clear(){
-		used_id_set_.clear();
-		free_id_set_.clear();
 		policies_.clear();
-		policy2samples_.clear();
-
-		//create pool of policy ids as appropriate  
-		for (size_type i=0; i<max_policies_; ++i)
-			free_id_set_.insert(i);
-
-		for (size_type i=0; i<max_policies_; ++i)
-			policies_[i] = policy_info_type();
-
-		for (size_type i=0; i<max_policies_; ++i)
-			policy2samples_[i] = GraphType();
-
-		num_inactive_policies_ = 0;
-		num_active_policies_ = 0;
-		assert(policy2samples_.size()==policies_.size());
+		policy2uid_.clear();
   }
 
+	void stats(){
+		cout << "Sampler Stats" << endl;
+		cout << "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" << endl;
+		cout << "Total Number of Policies: " << num_policies() << endl;
+		cout << "Number Active Policies: " << num_active_policies() << endl;
+		cout << "Number Inactive Policies: " << num_inactive_policies() << endl << endl;
+
+
+		cout << "Individual policy Stats" << endl;
+		cout << "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" << endl;
+		for(auto it = policies(); it != policies_end(); ++it){
+			cout << "Policy id: " << (*it).get_id() << endl;
+			cout << "# of samples: " << (*it).num_samples() << endl;
+			cout << "Is active?: " << (*it).is_active() << endl;
+			cout << "Has met limit?: " << (*it).has_met_limit() << endl;
+			cout << "Elements: " << endl;
+			(*it).stats();
+			cout << endl;
+		}
+
+	}
 
   class Policy:private totally_ordered<Policy> {
 	public:
    Policy(){
    }
 
-	/**Starts collection of samples*/
+	/*-----------Samples in -------------*/
+
 	void start_collection() {
 		if (is_active()) return;
-		if (has_met_limit()) return;
-		status() = 1;
+		fetch().status_ = 1;
 		start_t() = clock(); 
-		-- set_->num_inactive_policies_;
-		++ set_->num_active_policies_;
-		assert ((set_->num_active_policies_+set_->num_inactive_policies_)==set_->used_id_set_.size());
-		while (!has_met_limit()){
-			fetch().value_.collect();
-		}
+		fetch().value_.collect();
+		end_t() = clock();
+		//fetch_samples().insert(fetch_samples().end(),s.begin(),s.end());
 	}
 
-	/**Stops collection of samples*/
-	void stop_collection(){
-		if (!is_active()) return;
-		end_t() = clock();
+	void add_samples(Samples s){
+		fetch_samples().insert(fetch_samples().end(),s.begin(),s.end());
+	}
 
-		status() = 0;
-		++ set_->num_inactive_policies_;
-		-- set_->num_active_policies_;
+	void add_samples(string filename){
+		//TODO
+	}
 
-		//clean up and remove extra number of samples
-		while (num_samples() > max_samples()){
-			auto it = samples_begin();
-			fetch_samples().remove_node(*it);
-		}
+	void collect() {
+		start_collection();
+	}
 
-		
+	/*-----------Samples out -------------*/
+
+	Samples get_samples(){
+		return fetch_samples();
+	}
+
+	void get_samples(Sampler::Samples c){
+		c.insert(c.end(),fetch_samples().begin(),fetch_samples().end());
+	}
+
+	void get_samples(string filename){
+		//TODO
+	}
+
+	/*-----------Helpers-------------*/
+
+	size_type get_id(){
+		return uid_;
 	}
 
 	policy_value_type& value(){
@@ -266,6 +209,10 @@ class Sampler{
 		return fetch().status_;
    }
 
+	bool& is_active() const{
+		return status();
+	}
+
 	clock& start_t() const{
 		return fetch().start_t_;
 	}
@@ -274,20 +221,29 @@ class Sampler{
 		return fetch().end_t_;
 	}
 
-   bool is_active() const{
-		auto a =  fetch().status_;
-		return a;
-   }
+	void stats(){
+		fetch().value_.stats();
+	}
 
 	bool has_met_limit() {
 		return (fetch().value_.has_met_limit() || max_samples() <= num_samples()); 
 	}
 
-
    void clear(){
-		stop_collection();
 		fetch_samples().clear();
    }
+
+	void delete_samples(){
+		clear();
+	}
+
+	size_type& max_samples(){
+		return fetch().max_num_samples_;
+   }
+
+	size_type num_samples(){
+		return fetch_samples().size();
+	}
 
 	bool operator==(Policy& a){
 		return a.uid_==(uid_);
@@ -295,40 +251,6 @@ class Sampler{
 
 	bool operator<(Policy& a){
 		return a.uid_<(uid_);
-	}
-
-   //Samples ------------------------------
-	Sampler::Sample add_sample(Sampler::sample_value_type& sv){
-		sample_info_type si{true,sv};
-		return fetch_samples().add_node(Point(),si);
-	}
-
-	void delete_samples(){
-		set_->policy2samples_[uid_].clear();
-	}
-
-   sample_iterator samples_begin(){
-		return fetch_samples().node_begin();
-   }
-
-	sample_iterator samples_end(){
-		return fetch_samples().node_end();
-	}
-
-	Sampler::Sample sample(Sampler::sample_iterator s){
-		return (*s);
-	}
-
-	sample_value_type& sample_value(Sampler::sample_iterator s){
-		return s.value(); 
-   }
-
-	size_type& max_samples(){
-		return fetch().max_num_samples_;
-   }
-
-	size_type num_samples() const{
-		return set_->policy2samples_[uid_].size();
 	}
 
    private:
@@ -346,8 +268,8 @@ class Sampler{
 			return set_->policies_[uid_];
 		}
 
-		GraphType& fetch_samples(){
-			return set_->policy2samples_[uid_];
+		Sampler::Samples& fetch_samples(){
+			return set_->policies_[uid_].value_.samples();//samples_;
 		}
 
 		bool& status(){
@@ -362,7 +284,7 @@ class Sampler{
 			return fetch().end_t_;
 		}
 
-		bool is_active() {
+		bool& is_active() {
 			return fetch().status_;
 		}
 
@@ -414,62 +336,51 @@ class Sampler{
 		}
 
 		Policy fetch() const{
-		size_type a = 0;
-			for (auto it = set_->used_id_set_.begin(); it != set_->used_id_set_.end(); ++it){
-				if (a==idx_)
-					return set_->policy(*it);
-				a += 1;
-			}
-			return set_->policy(set_->max_num_policies());
+			return set_->policy(idx_);
 		}
   };
 
   private:
-		/** Stores Sample Information */
-		struct sample_info_type {
-			bool meets_policy_;
-			sample_value_type value_;
-		};
 
 		/*Info stored for each policy*/
 		struct policy_info_type{
 			size_type max_num_samples_;
-			bool status_; 
+			bool status_; //is collecting?
 			clock start_t_;
 			clock end_t_;
-			size_type collect_sec_delta; //time increments for requesting samples (in seconds)
+			size_type collect_sec_delta_; //time increments for requesting samples (in seconds)
 			policy_value_type value_;
-			sample_value_type	samples_;
-			policy_info_type(): max_num_samples_(1000),status_(0),start_t_(clock()),end_t_(clock()),collect_sec_delta(60),value_(policy_value_type()),samples_(){}
+			//Samples samples_;
+			policy_info_type(): max_num_samples_(1000),status_(0),start_t_(clock()),end_t_(clock()),collect_sec_delta_(60),value_(policy_value_type()){ }//,samples_(Samples()){}
+
+			policy_info_type (size_type max_num_samples, bool status, clock start_t, clock end_t, size_type collect_sec_delta, policy_value_type value){//, Samples samples){
+				max_num_samples_ = max_num_samples;
+				status_ = status;
+				start_t_ = start_t;
+				end_t_ = end_t;
+				collect_sec_delta_ = collect_sec_delta;
+				value_ = value;
+				//samples_ = samples;
+			}
+
+			void operator=(Policy& p){
+				max_num_samples_ = p.max_num_samples_;
+				status_ = false;
+				start_t_ = clock();
+				end_t_ = clock();
+				collect_sec_delta_ = p.collect_sec_delta_;
+				value_ = p.value_;
+				//samples_ = p.samples_;
+			}		
 		};
 
 		/**Policy_info_type must have the same**/
-		map<size_type,GraphType> policy2samples_;
-		map<size_type,policy_info_type> policies_;
+		vector<policy_info_type> policies_;
+		vector<size_type> policy2uid_; //stores official uids associated with policies_
 
-		/**Statistics*/
-		size_type max_policies_;
-		size_type num_active_policies_; 
-		size_type num_inactive_policies_;
-	
-		/**Policy id (pid) pool**/		
-		unordered_set<size_type> free_id_set_; 
-		unordered_set<size_type> used_id_set_; 
-
-		/** Returns true if a policy object is a valid object
-		*/
 		bool is_valid(Policy& p) const{
-			size_type pid = p.get_id();
-			for(auto it=used_id_set_.begin(); it!=used_id_set_.end(); ++it)
-				if((*it)==pid) return true;
-			return false;
+			return p.get_id() < num_policies();
 		}
-
-		/**Returns a Policy object**/
-	  	Policy policy(size_type id){
-			return Policy(this,id);
-		} 
-
 };
 
 

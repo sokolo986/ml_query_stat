@@ -1,14 +1,23 @@
-#include "Graph.hpp"
-#include <unordered_set>
-#include <limits.h>
+#include "CS207/Util.hpp"
+//#include "Point.hpp"
+//#include <algorithm>
+#include <vector>
+#include <cassert>
+//#include <map>
+using namespace std;
 #include "Sampler.hpp"
+
+//#include <unordered_set>
+
+#include "Graph.hpp"
 #include <float.h>
+//#include <limits.h>
 #include "Manager.hpp"
 #include "Selector.hpp"
-#include <cstdlib>
-#include <math.h>
+//#include <cstdlib>
+//#include <math.h>
 
-struct sample_value_type;
+
 struct policy_value_type;
 struct X_type;
 typedef X_type X;
@@ -18,16 +27,15 @@ typedef Y_type Y;
 //template <typename X>
 struct domain_value_type;
 
-typedef sample_value_type S;
+typedef vector<float> S;
 typedef policy_value_type P;
+typedef Sampler<P,S> SamplerType;
+typedef SamplerType::Policy policy;
+typedef SamplerType::size_type size_type;
+//typedef typename SamplerType::Samples C;
+typedef S C;
 
 typedef domain_value_type D;
-typedef unsigned size_type;
-typedef void C;
-
-typedef Sampler<P,S,C> SamplerType;
-typedef SamplerType::Policy policy;
-
 //Example of using the model manager with two different types of models
 struct regression_type;
 typedef regression_type R;
@@ -57,9 +65,9 @@ struct V_type{
 				x_.push_back(t[i]);
 		}	
 
-		void add_element(Vec::value_type s){
+		/*void add_element(Vec::value_type s){
 			x_.push_back(s);
-		}
+		}*/
 
 		bool operator==(const V& y) const{
 			return y.x_ == x_;
@@ -141,32 +149,54 @@ typedef Manager<F,D> RandomForest;
 
 struct policy_value_type: pvt<C> {
 	private:
-		int x_;
-		int y_;
+
+		std::vector<C> s_;
+
 	public:	
-		policy_value_type(int x, int y):x_(x),y_(y){}
-		policy_value_type(): x_(0),y_(0){}
-		C collect(){for(int i=0; i<5;++i) cout <<"collecting";cout<<endl;}
-		C stop_collect(){for(int i=0; i<5;++i) cout <<"stop";cout<<endl;}	
-		void print_val(){
-			cout << "X:   " << x_ << "  Y:   " << y_;
-			cout << endl << endl;
+
+		policy_value_type(){
 		}
+
+		void collect(){
+			size_type num_ele = 10;
+			
+			size_type num_samples = 1+rand()%15;
+			C tmp = C();
+
+			for(size_type i = 0; i < num_samples; ++i){
+				//C::value_type tmp;
+				tmp.clear();
+				for(size_type j=0; j < num_ele; ++j){
+					tmp.push_back(rand()%400);//tmp.insert(tmp.end(),rand()%4000);
+				}
+				s_.push_back(tmp);//s_.insert(s_.end(),tmp);
+			}
+		}
+
+		void clear(){
+			s_.clear();
+		}
+
+		void stats(){
+			cout << "Number in vector: " << s_.size() << endl;
+			for(auto it = s_.begin(); it != s_.end(); ++it){
+				for(auto itt = (*it).begin(); itt != (*it).end(); ++itt)
+					cout << *itt << " ";
+				cout << endl;
+			}
+			cout << endl;
+		}
+
 		bool has_met_limit(){
 			return (rand()%100 < 10);
 		}
+	
+		std::vector<C>& samples(){
+			return s_;
+		}
+
 };
 
-struct sample_value_type{
-	size_type id;
-	string	user_name;
-	string	address;
-	void operator=(sample_value_type a){
-		id = a.id;
-		user_name = a.user_name;
-		address = a.address;
-	}
-};
 
 //regression model
 //template <typename X, typename Y>
@@ -208,7 +238,7 @@ struct regression_type{
 			y_val.push_back(rand()%1000);
 
 		Y y1;
-		y1.add_element(y_val);//y1.y(y_val);
+		//y1.add_element(y_val);//y1.y(y_val);
 		return y1;
 	}
 
@@ -274,38 +304,24 @@ int main(){
 	
 	CS207::Clock t;	
 
-	Sampler<P,S,void> Samp(15);
+	SamplerType Samp;
 	t = start_time();	
 	visual_output(Samp,"initiated variable with samples");
-	auto p1 = Samp.create_policy(25);
-	auto p2 = Samp.create_policy(50);
+	SamplerType::Policy p1 = Samp.create_policy(25,60);
+	SamplerType::Policy p2 = Samp.create_policy(50,60);
 	visual_output(Samp,"created 2 policies");
+	Samp.stats();
+
 	Samp.start_collections();
-	visual_output(Samp,"initiated all collections");
-	Samp.stop_collections();
-	visual_output(Samp,"stopped all collections");
-	
-	for( auto it = Samp.policies(); it!=Samp.policies_end(); ++it)
-		cout << "policy -- ";
-	cout << endl;		
-	visual_output(Samp,"created an iterator to policies");
-	cout << "max policies " << Samp.max_num_policies();
-	cout << "num policies " << Samp.num_policies();
-	cout << "num active policies " << Samp.num_active_policies();
-	cout << "num inactive policies " << Samp.num_inactive_policies();
-
-	p1.start_collection();
-	visual_output(Samp,"output statistics and started collection for a new policy");
-	p1.stop_collection();
-	visual_output(Samp,"stopped policy");
-
-	sample_value_type sv{1,"Sierra","23 Mulberry Lane"};
-	p2.add_sample(sv);
-	visual_output(Samp,"added sample");
+	Samp.stats();
+	visual_output(Samp,"initiated all collections");	
 
 	p2.delete_samples();
-	visual_output(Samp,"added sample");
-	end_time(t);	
+	visual_output(Samp,"deleted all samples in one policy");
+	Samp.stats();
+
+	/*
+
 
 	Regression r1;
 	vector<double> vt;
@@ -348,10 +364,10 @@ int main(){
 
 	cout << "Model Loss is"<< loss_overall << " units" <<endl <<endl;
 
-	/*auto best_m = s.best_model(r1, x1, x1,y1,y1);
+	auto best_m = s.best_model(r1, x1, x1,y1,y1);
 	cout << "Overall loss is " << loss_overall;
 	(void) best_m;
-	(void) m2;*/
+	(void) m2; */
 }
 
 
