@@ -15,7 +15,7 @@ class Manager{
 	/**Holds policy and sample information**/
 	//struct model_info_type;
 	//typedef model_info_type O;//same as node value type
-	struct model_info_type;
+	//struct model_info_type;
 
  public:
 	

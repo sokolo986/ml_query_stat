@@ -6,19 +6,19 @@ struct model parameters error from training **/
 	X = value type for the features
 	Y = value_type for the predicted value
 	L = loss function to determine the risk of a model**/
-template <typename M, typename X, typename Y>
+template <typename M, typename D, typename X, typename Y>
 class Selector{
 //add Cross_validation to this
  public:
 
 	/** Model value type **/
 	typedef M model_value_type;
-	//typedef D domain_value_type;
+	typedef D domain_value_type;
 	typedef X X_value_type;
 	typedef Y y_value_type;
 
 	/** Graph typedefs **/
-	typedef Manager<M> ManagerType;
+	typedef Manager<M,D> ManagerType;
 	typedef typename ManagerType::size_type size_type;
 	typedef typename ManagerType::error_type error_type;
 	typedef typename ManagerType::Model Model;

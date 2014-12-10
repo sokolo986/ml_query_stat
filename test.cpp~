@@ -257,7 +257,7 @@ struct Regression_type{
 			w_.insert(w_.begin(),w.begin(),w.end());
 		}
 
-		vector<double> get_params(){
+		P get_params(){
 			return w_;
 		}
 		
