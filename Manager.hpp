@@ -15,7 +15,6 @@ class Manager{
 	struct model_info_type;
 	typedef model_info_type O;//same as node value type
 	
-
  public:
 
 	typedef D domain_value_type;

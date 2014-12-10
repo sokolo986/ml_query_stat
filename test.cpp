@@ -37,6 +37,8 @@ typedef Selector<R,D,X,Y> SelectorType;
 typedef SelectorType::error_type error_type;
 typedef SelectorType::ManagerType Regression;
 
+//element must have a size() element as well 
+//must have an insert method as well
 template <typename V,typename Vec>
 struct V_type{
 	private:
@@ -55,14 +57,13 @@ struct V_type{
 				x_.push_back(t[i]);
 		}	
 
-		void add_element(size_type s, vec t){
-			for (size_type i=0; i < t.size(); ++i)
-				x_.push_back(t[i]);
-		}	
+		void add_element(Vec::value_type s){
+			x_.push_back(s);
+		}
 
-			bool operator==(const V& y) const{
-		return y.x_ == x_;
-   }
+		bool operator==(const V& y) const{
+			return y.x_ == x_;
+   	}
 
 		/*void remove_element(size_type idx){
 			vector<double> tmp;
@@ -122,7 +123,8 @@ struct X_type: totally_ordered<X_type>, V_type<X_type, vector<double> >{
 	
 };
 
-struct Y_type: totally_ordered<Y_type>, V_type<Y_type, vector<double> >{};
+struct Y_type: totally_ordered<Y_type>, V_type<Y_type, vector<double> >{
+};
 
 struct domain_value_type: domain_type<X>{
 	size_type id;

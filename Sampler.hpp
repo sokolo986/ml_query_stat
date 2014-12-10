@@ -1,10 +1,10 @@
 /** Sampler Class
  ** Collected & maintains samples IAW a registered policy
- ** Samples are associated with a policy; therefore, policies
- ** must be allocated for and created before samples are requested
- ** sample_value_type must define a 'collect' and a 'stopcollect' routine
- ** that can be stopped. 'collect' must be implemented as a passive function that collects samples and thenn returns to the calling function to test if the samples meet the policy
- ** must also have implemented has_met_limit()
+ ** Policies define HOW and WHAT samples will be collected.
+
+ ** typename S must define a 'collect(clock start_time, clock end_time)' routine, where the start and end time define the time period to collect samples within
+
+ ** if collect() returns too many samples, the first @ a samples within the maximum number of samples limit will be stored 
  **/
 		
 template <typename P, typename S, typename C>
@@ -116,7 +116,7 @@ class Sampler{
    * @post 			num_policies() += 1
 	* @post			num_inactive_policies() += 1
 	*/
-  	Policy create_policy(size_type max_samples = 1000, size_type max_sample_size = 1000*sizeof(sample_value_type)){
+  	Policy create_policy(size_type max_samples = 1000 ){
 		assert(num_policies()<=max_num_policies());		
 		auto it = free_id_set_.begin();
 		size_type pid = *it;
@@ -124,7 +124,7 @@ class Sampler{
 		used_id_set_.insert(pid);
 		++num_inactive_policies_;
 		policies_[pid].max_num_samples_ 	= max_samples;
-		policies_[pid].max_size_			= max_sample_size;
+
 		policy2samples_[pid] = GraphType();
 		assert(policy2samples_.size()==policies_.size());
 		return Policy(this,pid);
@@ -255,12 +255,7 @@ class Sampler{
 			fetch_samples().remove_node(*it);
 		}
 
-		//clean up and remove extra samples that do not meet size requirements
-		size_type sizeof_sample = sizeof(sample_value_type);
-		while (max_size() < (sizeof_sample * num_samples())){
-			auto it = samples_begin();
-			fetch_samples().remove_node(*it);
-		}
+		
 	}
 
 	policy_value_type& value(){
@@ -285,12 +280,9 @@ class Sampler{
    }
 
 	bool has_met_limit() {
-		return ((fetch().value_.has_met_limit()) || ((max_samples() <= num_samples()) && (max_size() <= sizeof(sample_value_type)*num_samples()))); 
+		return (fetch().value_.has_met_limit() || max_samples() <= num_samples()); 
 	}
 
-	size_type& max_size(){
-		return fetch().max_size_;
-	}
 
    void clear(){
 		stop_collection();
@@ -442,24 +434,23 @@ class Sampler{
 		/*Info stored for each policy*/
 		struct policy_info_type{
 			size_type max_num_samples_;
-			size_type max_size_;
 			bool status_; 
 			clock start_t_;
 			clock end_t_;
+			size_type collect_sec_delta; //time increments for requesting samples (in seconds)
 			policy_value_type value_;
-			policy_info_type(): max_num_samples_(1000),max_size_(sizeof(policy_value_type)),status_(0),start_t_(clock()),end_t_(clock()),value_(policy_value_type()){}
+			sample_value_type	samples_;
+			policy_info_type(): max_num_samples_(1000),status_(0),start_t_(clock()),end_t_(clock()),collect_sec_delta(60),value_(policy_value_type()),samples_(){}
 		};
 
-		/**Maximum number of outstanding policies that can be defined at one time**/
-		size_type max_policies_;
-
-		/**Information about state of all policies**/
-		size_type num_active_policies_; 
-		size_type num_inactive_policies_;
-
-		/**maps policy_ids to samples**/
+		/**Policy_info_type must have the same**/
 		map<size_type,GraphType> policy2samples_;
 		map<size_type,policy_info_type> policies_;
+
+		/**Statistics*/
+		size_type max_policies_;
+		size_type num_active_policies_; 
+		size_type num_inactive_policies_;
 	
 		/**Policy id (pid) pool**/		
 		unordered_set<size_type> free_id_set_; 
