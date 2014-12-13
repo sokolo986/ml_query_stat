@@ -349,6 +349,7 @@ int main(){
 	Regression_type r1;
 
 	mgr.add_model(r1,r1);
+	cout << "Number of models:" <<mgr.num_models() << endl;
 	/*
 	vector<double> vt;
 	vt.push_back(5.5);

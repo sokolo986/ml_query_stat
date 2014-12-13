@@ -2,8 +2,6 @@
 struct model parameters error from training 
  ** currently has support for up to 4 different models
  */
-
-
 template <typename M1, typename M2 = M1, typename M3 = M1, typename M4 = M1>
 class Manager{
  private:
@@ -31,7 +29,7 @@ class Manager{
 	//typedef typename GraphType::node_iterator model_iterator;
 	typedef Manager manager_type;
 
-	Manager():models_(),num_models_(4){
+	Manager():models_(),used_m1_(0),used_m2_(0),used_m3_(0),used_m4_(0){
 	}
 
    ~Manager() = default;
@@ -39,30 +37,46 @@ class Manager{
    Manager& operator=(const Manager&) = delete;
 
 	size_type num_models(){
-		return num_models_; 
+		return ((size_type) (used_m1_ + used_m2_ + used_m3_ + used_m4_)); 
 	}
 
 	void add_model(M1 m1 = M1(), M2 m2 = M2(), M3 m3 = M3(), M4 m4=M4()){
-		if (m1 != M1())
+		if (m1 != M1()){
 			models_.m1_ = m1;
-		if (m2 != M2())
+			used_m1_ = 1;
+		}
+		if (m2 != M2()){
 			models_.m2_ = m2;
-		if (m3 != M3())
+			used_m2_ = 1;
+		}
+		if (m3 != M3()){
 			models_.m3_ = m3;
-		if (m4 != M4())
+			used_m3_ = 1;
+		}
+		if (m4 != M4()){
 			models_.m4_ = m4;
+			used_m4_ = 1;
+		}
 	}
 
 	void clear_model(size_type id){
 		assert(id < 5 && id > 0);
-		if (id == 1)
+		if (id == 1){
 			models_.m1_ = M1();
-		if (id == 2)
+			used_m1_ = 0;
+		}
+		if (id == 2){
 			models_.m2_ = M2();
-		if (id == 3)
+			used_m2_ = 0;
+		}
+		if (id == 3){
 			models_.m3_ = M3();
-		if (id == 4)
+			used_m3_ = 0;
+		}
+		if (id == 4){
 			models_.m4_ = M4();
+			used_m4_ = 0;
+		}
 	}
 
 	M1 model1(){
@@ -92,6 +106,10 @@ class Manager{
 		models_.m2_ = M2();
 		models_.m3_ = M3();
 		models_.m4_ = M4();
+		used_m1_ = 0;
+		used_m2_ = 0;
+		used_m3_ = 0;
+		used_m4_ = 0;
 	}
 
 
@@ -115,7 +133,11 @@ class Manager{
 		};
 		
 		model_info_type models_;
-		size_type num_models_;
+
 		//GraphType* graph_;
+		bool used_m1_;
+		bool used_m2_;
+		bool used_m3_;
+		bool used_m4_;
 
 };
